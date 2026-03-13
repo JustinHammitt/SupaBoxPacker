@@ -13,7 +13,6 @@ class BinPackingGUI:
 
         self.items = []
         self.last_box = None
-        self.unit_system = tk.StringVar(value="Imperial (in)")
 
         self._build_ui()
 
@@ -62,8 +61,14 @@ class BinPackingGUI:
             state="readonly",
             width=14
         )
+
         self.unit_combo.grid(row=1, column=5, padx=5, pady=5, sticky="w")
         self.unit_combo.bind("<<ComboboxSelected>>", self.update_unit_labels)
+        ttk.Label(
+            bin_frame,
+            text="Display units only. Data is stored internally in metric/unitless values."
+        ).grid(row=2, column=0, columnspan=8, padx=5, pady=(5, 0), sticky="w")
+        
         # =========================
         # Item Entry Section
         # =========================
@@ -169,8 +174,98 @@ class BinPackingGUI:
         
         self.update_unit_labels()
 
+    # =========================
+    # Unit display + Conversion
+    # Internal storage is metric/unitless:
+    # - dimensions in cm
+    # - weights in kg
+    # =========================
+
+    def is_metric_display(self):
+        return self.unit_system.get() == "Metric (cm)"
+
+    def display_to_metric_dim(self, value):
+        value = float(value)
+        if self.is_metric_display():
+            return value
+        return value * 2.54
+
+    def metric_to_display_dim(self, value):
+        value = float(value)
+        if self.is_metric_display():
+            return value
+        return value / 2.54
+
+    def display_to_metric_weight(self, value):
+        value = float(value)
+        if self.is_metric_display():
+            return value
+        return value * 0.45359237
+
+    def metric_to_display_weight(self, value):
+        value = float(value)
+        if self.is_metric_display():
+            return value
+        return value / 0.45359237
+
+    def fmt_display(self, value):
+        return f"{float(value):.4f}".rstrip("0").rstrip(".")
+
+    def refresh_item_tree(self):
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+
+        for item in self.items:
+            display_w = self.fmt_display(self.metric_to_display_dim(item["WHD"][0]))
+            display_h = self.fmt_display(self.metric_to_display_dim(item["WHD"][1]))
+            display_d = self.fmt_display(self.metric_to_display_dim(item["WHD"][2]))
+            display_weight = self.fmt_display(self.metric_to_display_weight(item["weight"]))
+
+            self.tree.insert(
+                "",
+                "end",
+                values=(
+                    item["name"],
+                    f"{display_w} x {display_h} x {display_d}",
+                    display_weight,
+                    item["qty"],
+                    item["color"],
+                    item["updown"],
+                ),
+            )
+
+    def convert_all_display_values(self, from_unit, to_unit):
+        dim_scale, weight_scale = self.get_unit_scale(from_unit, to_unit)
+
+        self.bin_w.set(self.safe_float_convert(self.bin_w.get(), dim_scale))
+        self.bin_h.set(self.safe_float_convert(self.bin_h.get(), dim_scale))
+        self.bin_d.set(self.safe_float_convert(self.bin_d.get(), dim_scale))
+        self.bin_weight.set(self.safe_float_convert(self.bin_weight.get(), weight_scale))
+        self.bin_corner.set(self.safe_float_convert(self.bin_corner.get(), dim_scale))
+
+        self.item_w.set(self.safe_float_convert(self.item_w.get(), dim_scale))
+        self.item_h.set(self.safe_float_convert(self.item_h.get(), dim_scale))
+        self.item_d.set(self.safe_float_convert(self.item_d.get(), dim_scale))
+        self.item_weight.set(self.safe_float_convert(self.item_weight.get(), weight_scale))
+
+        for item in self.items:
+            item["WHD"] = (
+                round(float(item["WHD"][0]) * dim_scale, 4),
+                round(float(item["WHD"][1]) * dim_scale, 4),
+                round(float(item["WHD"][2]) * dim_scale, 4),
+            )
+            item["weight"] = round(float(item["weight"]) * weight_scale, 4)
+
+        self.refresh_item_tree()
+
+    # =========================
+    # label updates
+    # =========================
+
     def update_unit_labels(self, event=None):
-        if self.unit_system.get() == "Metric (cm)":
+        selected_unit = self.unit_system.get()
+
+        if selected_unit == "Metric (cm)":
             dim_unit = "cm"
             weight_unit = "kg"
         else:
@@ -187,6 +282,9 @@ class BinPackingGUI:
         self.item_depth_label.config(text=f"Depth ({dim_unit})")
         self.item_weight_label.config(text=f"Weight ({weight_unit})")
 
+        self.refresh_item_tree()
+        self.previous_unit_system = selected_unit
+
     def _add_labeled_entry(self, parent, label, var, row, col):
         ttk.Label(parent, text=label).grid(row=row, column=col, padx=5, pady=5, sticky="e")
         ttk.Entry(parent, textvariable=var, width=14).grid(row=row, column=col + 1, padx=5, pady=5, sticky="w")
@@ -196,11 +294,11 @@ class BinPackingGUI:
             item = {
                 "name": self.item_name.get().strip(),
                 "WHD": (
-                    float(self.item_w.get()),
-                    float(self.item_h.get()),
-                    float(self.item_d.get()),
+                    self.display_to_metric_dim(self.item_w.get()),
+                    self.display_to_metric_dim(self.item_h.get()),
+                    self.display_to_metric_dim(self.item_d.get()),
                 ),
-                "weight": float(self.item_weight.get()),
+                "weight": self.display_to_metric_weight(self.item_weight.get()),
                 "qty": int(self.item_qty.get()),
                 "color": self.item_color.get().strip() or "#4F81BD",
                 "updown": self.item_updown.get(),
@@ -210,20 +308,10 @@ class BinPackingGUI:
                 raise ValueError("Item name is required.")
 
             self.items.append(item)
-            self.tree.insert(
-                "",
-                "end",
-                values=(
-                    item["name"],
-                    f"{item['WHD'][0]} x {item['WHD'][1]} x {item['WHD'][2]}",
-                    item["weight"],
-                    item["qty"],
-                    item["color"],
-                    item["updown"],
-                ),
-            )
+            self.refresh_item_tree()
             self.clear_item_fields()
             self.last_box = None
+
         except Exception as exc:
             messagebox.showerror("Invalid Item", str(exc))
 
@@ -266,20 +354,8 @@ class BinPackingGUI:
             {"name": "TallItem", "WHD": (15, 40, 15), "weight": 6, "qty": 1, "color": "#6699FF", "updown": False},
         ]
 
-        for sample in samples:
-            self.items.append(sample)
-            self.tree.insert(
-                "",
-                "end",
-                values=(
-                    sample["name"],
-                    f"{sample['WHD'][0]} x {sample['WHD'][1]} x {sample['WHD'][2]}",
-                    sample["weight"],
-                    sample["qty"],
-                    sample["color"],
-                    sample["updown"],
-                ),
-            )
+        self.items.extend(samples)
+        self.refresh_item_tree()
 
         self.results.delete("1.0", tk.END)
         self.results.insert(tk.END, "Loaded sample items.")
@@ -292,9 +368,13 @@ class BinPackingGUI:
             packer = Packer()
             box = Bin(
                 partno=self.bin_name.get().strip() or "MainBin",
-                WHD=(float(self.bin_w.get()), float(self.bin_h.get()), float(self.bin_d.get())),
-                max_weight=float(self.bin_weight.get()),
-                corner=float(self.bin_corner.get()),
+                WHD=(
+                    self.display_to_metric_dim(self.bin_w.get()),
+                    self.display_to_metric_dim(self.bin_h.get()),
+                    self.display_to_metric_dim(self.bin_d.get()),
+                ),
+                max_weight=self.display_to_metric_weight(self.bin_weight.get()),
+                corner=self.display_to_metric_dim(self.bin_corner.get()),
                 put_type=0,
             )
             packer.addBin(box)
@@ -337,10 +417,15 @@ class BinPackingGUI:
         total_volume = float(box.width) * float(box.height) * float(box.depth)
         utilization = (used_volume / total_volume * 100) if total_volume else 0
 
+        disp_box_w = self.fmt_display(self.metric_to_display_dim(box.width))
+        disp_box_h = self.fmt_display(self.metric_to_display_dim(box.height))
+        disp_box_d = self.fmt_display(self.metric_to_display_dim(box.depth))
+        disp_box_weight = self.fmt_display(self.metric_to_display_weight(box.max_weight))
+
         lines = [
             f"Container: {box.partno}",
-            f"Size: {box.width} x {box.height} x {box.depth}",
-            f"Max Weight: {box.max_weight}",
+            f"Size: {disp_box_w} x {disp_box_h} x {disp_box_d}",
+            f"Max Weight: {disp_box_weight}",
             "",
             f"Fitted Items: {fitted}",
             f"Unfitted Items: {unfitted}",
@@ -351,15 +436,21 @@ class BinPackingGUI:
         ]
 
         for item in box.items:
+            disp_w = self.fmt_display(self.metric_to_display_dim(item.width))
+            disp_h = self.fmt_display(self.metric_to_display_dim(item.height))
+            disp_d = self.fmt_display(self.metric_to_display_dim(item.depth))
             lines.append(
-                f"{item.partno} | pos={item.position} | size={item.width}x{item.height}x{item.depth} | rot={item.rotation_type}"
+                f"{item.partno} | pos={item.position} | size={disp_w}x{disp_h}x{disp_d} | rot={item.rotation_type}"
             )
 
         lines.append("")
         lines.append("=== UNFITTED ===")
 
         for item in box.unfitted_items:
-            lines.append(f"{item.partno} | size={item.width}x{item.height}x{item.depth}")
+            disp_w = self.fmt_display(self.metric_to_display_dim(item.width))
+            disp_h = self.fmt_display(self.metric_to_display_dim(item.height))
+            disp_d = self.fmt_display(self.metric_to_display_dim(item.depth))
+            lines.append(f"{item.partno} | size={disp_w}x{disp_h}x{disp_d}")
 
         self.results.delete("1.0", tk.END)
         self.results.insert(tk.END, "\n".join(lines))
@@ -383,14 +474,13 @@ class BinPackingGUI:
             data = {
                 "bin": {
                     "name": self.bin_name.get().strip(),
-                    "units": self.unit_system.get(),
                     "WHD": [
-                        float(self.bin_w.get()),
-                        float(self.bin_h.get()),
-                        float(self.bin_d.get()),
+                        self.display_to_metric_dim(self.bin_w.get()),
+                        self.display_to_metric_dim(self.bin_h.get()),
+                        self.display_to_metric_dim(self.bin_d.get()),
                     ],
-                    "max_weight": float(self.bin_weight.get()),
-                    "corner": float(self.bin_corner.get()),
+                    "max_weight": self.display_to_metric_weight(self.bin_weight.get()),
+                    "corner": self.display_to_metric_dim(self.bin_corner.get()),
                 },
                 "items": [
                     {
@@ -442,14 +532,11 @@ class BinPackingGUI:
             whd = bin_data.get("WHD", [100, 100, 100])
 
             self.bin_name.set(str(bin_data.get("name", "MainBin")))
-            self.bin_w.set(str(whd[0]))
-            self.bin_h.set(str(whd[1]))
-            self.bin_d.set(str(whd[2]))
-            self.bin_weight.set(str(bin_data.get("max_weight", 1000)))
-            self.bin_corner.set(str(bin_data.get("corner", 0)))
-            
-            self.unit_system.set(str(bin_data.get("units", "Imperial (in)")))
-            self.update_unit_labels()
+            self.bin_w.set(self.fmt_display(self.metric_to_display_dim(whd[0])))
+            self.bin_h.set(self.fmt_display(self.metric_to_display_dim(whd[1])))
+            self.bin_d.set(self.fmt_display(self.metric_to_display_dim(whd[2])))
+            self.bin_weight.set(self.fmt_display(self.metric_to_display_weight(bin_data.get("max_weight", 1000))))
+            self.bin_corner.set(self.fmt_display(self.metric_to_display_dim(bin_data.get("corner", 0))))
 
             self.clear_all_items()
 
@@ -470,24 +557,9 @@ class BinPackingGUI:
                 }
 
                 self.items.append(normalized_item)
-                self.tree.insert(
-                    "",
-                    "end",
-                    values=(
-                        normalized_item["name"],
-                        f"{normalized_item['WHD'][0]} x {normalized_item['WHD'][1]} x {normalized_item['WHD'][2]}",
-                        normalized_item["weight"],
-                        normalized_item["qty"],
-                        normalized_item["color"],
-                        normalized_item["updown"],
-                    ),
-                )
 
-            # UX improvement:
-            # Automatically pack the box immediately after loading.
+            self.refresh_item_tree()
             self.run_packing()
-
-            # Optional status note after packing completes.
             self.results.insert(tk.END, f"\n\nLoaded from:\n{file_path}")
 
         except Exception as exc:
@@ -498,11 +570,11 @@ class BinPackingGUI:
             item_data = {
                 "name": self.item_name.get().strip(),
                 "WHD": [
-                    float(self.item_w.get()),
-                    float(self.item_h.get()),
-                    float(self.item_d.get()),
+                    self.display_to_metric_dim(self.item_w.get()),
+                    self.display_to_metric_dim(self.item_h.get()),
+                    self.display_to_metric_dim(self.item_d.get()),
                 ],
-                "weight": float(self.item_weight.get()),
+                "weight": self.display_to_metric_weight(self.item_weight.get()),
                 "qty": int(self.item_qty.get()),
                 "color": self.item_color.get().strip() or "#4F81BD",
                 "updown": self.item_updown.get(),
@@ -546,10 +618,10 @@ class BinPackingGUI:
             whd = item_data.get("WHD", [0, 0, 0])
 
             self.item_name.set(str(item_data.get("name", "")))
-            self.item_w.set(str(whd[0]))
-            self.item_h.set(str(whd[1]))
-            self.item_d.set(str(whd[2]))
-            self.item_weight.set(str(item_data.get("weight", 1)))
+            self.item_w.set(self.fmt_display(self.metric_to_display_dim(whd[0])))
+            self.item_h.set(self.fmt_display(self.metric_to_display_dim(whd[1])))
+            self.item_d.set(self.fmt_display(self.metric_to_display_dim(whd[2])))
+            self.item_weight.set(self.fmt_display(self.metric_to_display_weight(item_data.get("weight", 1))))
             self.item_qty.set(str(item_data.get("qty", 1)))
             self.item_color.set(str(item_data.get("color", "#4F81BD")))
             self.item_updown.set(bool(item_data.get("updown", True)))
