@@ -122,6 +122,10 @@ Visualization powered by:
 
 **matplotlib**
 
+The Real Hero's:
+
+GUI Frontend fork based off https://github.com/jerry800416/3D-bin-packing and the og repo credite by jerry https://github.com/enzoruiz/3dbinpacking
+
 ---
 
 # License
