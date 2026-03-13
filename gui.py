@@ -8,7 +8,7 @@ from py3dbp import Packer, Bin, Item, Painter
 class BinPackingGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("3D Bin Packing - Simple GUI")
+        self.root.title("SupaBoxPacker")
         self.root.geometry("980x700")
 
         self.items = []
