@@ -12,6 +12,12 @@ Built in Python using:
 
 ---
 
+# Releases
+
+[releases](https://github.com/JustinHammitt/3D-bin-packing-PYGUI/releases)
+
+---
+
 # Features
 
 ✔ Simple GUI interface  
