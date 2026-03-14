@@ -5,7 +5,7 @@ from tkinter import ttk, messagebox, scrolledtext, filedialog
 from py3dbp import Packer, Bin, Item, Painter
 
 from fill_to_capacity import fill_single_item_to_capacity
-
+from services.unit_service import UnitService
 
 class BinPackingGUI:
     def __init__(self, root):
@@ -154,7 +154,6 @@ class BinPackingGUI:
             row=2, column=3, padx=5, pady=10, sticky="w"
         )
 
-    
         # =========================
         # Item List Section
         # =========================
@@ -212,75 +211,26 @@ class BinPackingGUI:
     # - weights in kg
     # =========================
 
-    def is_metric_display(self):
-        return self.unit_system.get() == "Metric (cm)"
-
     def display_to_metric_dim(self, value):
-        value = float(value)
-        if self.is_metric_display():
-            return value
-        return value * 2.54
+        return UnitService.display_to_metric_dim(value, self.unit_system.get())
 
     def metric_to_display_dim(self, value):
-        value = float(value)
-        if self.is_metric_display():
-            return value
-        return value / 2.54
+        return UnitService.metric_to_display_dim(value, self.unit_system.get())
 
     def display_to_metric_weight(self, value):
-        value = float(value)
-        if self.is_metric_display():
-            return value
-        return value * 0.45359237
+        return UnitService.display_to_metric_weight(value, self.unit_system.get())
 
     def metric_to_display_weight(self, value):
-        value = float(value)
-        if self.is_metric_display():
-            return value
-        return value / 0.45359237
+        return UnitService.metric_to_display_weight(value, self.unit_system.get())
 
     def fmt_display(self, value):
-        value = round(float(value), 4)
+        return UnitService.fmt_display(value)
 
-        # Snap very-close whole numbers to the whole number
-        if abs(value - round(value)) < 0.0002:
-            value = round(value)
-
-        return f"{value:.4f}".rstrip("0").rstrip(".")
-        
     def convert_display_dim_value(self, value, from_unit, to_unit):
-        try:
-            value = float(value)
-        except Exception:
-            return value
-
-        if from_unit == to_unit:
-            return self.fmt_display(value)
-
-        if from_unit == "Imperial (in)" and to_unit == "Metric (cm)":
-            return self.fmt_display(value * 2.54)
-
-        if from_unit == "Metric (cm)" and to_unit == "Imperial (in)":
-            return self.fmt_display(value / 2.54)
-
-        return self.fmt_display(value)
+        return UnitService.convert_display_dim_value(value, from_unit, to_unit)
 
     def convert_display_weight_value(self, value, from_unit, to_unit):
-        try:
-            value = float(value)
-        except Exception:
-            return value
-
-        if from_unit == to_unit:
-            return self.fmt_display(value)
-
-        if from_unit == "Imperial (in)" and to_unit == "Metric (cm)":
-            return self.fmt_display(value * 0.45359237)
-
-        if from_unit == "Metric (cm)" and to_unit == "Imperial (in)":
-            return self.fmt_display(value / 0.45359237)
-
-        return self.fmt_display(value)
+        return UnitService.convert_display_weight_value(value, from_unit, to_unit)
 
     def convert_visible_entry_fields(self, from_unit, to_unit):
         # Container fields
@@ -311,12 +261,25 @@ class BinPackingGUI:
                 "end",
                 values=(
                     item["name"],
-                                f"{display_d} x {display_w} x {display_h}",                                                display_weight,
+                    f"{display_w} x {display_h} x {display_d}",
+                    display_weight,
                     "AUTO" if item.get("fill_to_max", False) else item["qty"],
                     item["color"],
                     item["updown"],
                 ),
             )
+
+    # =========================
+    # Fill to max
+    # =========================
+
+    def on_fill_to_max_toggle(self):
+        if self.item_fill_to_max.get():
+            self.item_qty.set("")
+            self.item_qty_entry.state(["disabled"])
+        else:
+            self.item_qty_entry.state(["!disabled"])
+            self.item_qty.set("1")
 
     # =========================
     # label updates
@@ -334,13 +297,7 @@ class BinPackingGUI:
 
     def update_unit_labels(self, event=None):
         selected_unit = self.unit_system.get()
-
-        if selected_unit == "Metric (cm)":
-            dim_unit = "cm"
-            weight_unit = "kg"
-        else:
-            dim_unit = "in"
-            weight_unit = "lb"
+        dim_unit, weight_unit = UnitService.get_label_units(selected_unit)
 
         self.bin_length_label.config(text=f"Length ({dim_unit})")
         self.bin_width_label.config(text=f"Width ({dim_unit})")
@@ -382,6 +339,7 @@ class BinPackingGUI:
 
             self.items.append(item)
             self.refresh_item_tree()
+            self.clear_item_fields()
             self.last_box = None
 
         except Exception as exc:
@@ -433,6 +391,18 @@ class BinPackingGUI:
 
         self.results.delete("1.0", tk.END)
         self.results.insert(tk.END, "Loaded sample items.")
+
+    def _get_container_config(self):
+        return {
+            "name": self.bin_name.get().strip() or "MainBin",
+            "WHD": [
+                self.display_to_metric_dim(self.bin_w.get()),
+                self.display_to_metric_dim(self.bin_h.get()),
+                self.display_to_metric_dim(self.bin_d.get()),
+            ],
+            "max_weight": self.display_to_metric_weight(self.bin_weight.get()),
+            "corner": self.display_to_metric_dim(self.bin_corner.get() or 0),
+        }
 
     def run_packing(self):
         try:
@@ -509,7 +479,7 @@ class BinPackingGUI:
 
         except Exception as exc:
             messagebox.showerror("Packing Error", str(exc))
-    
+            
     def render_results(self, box):
         fitted = len(box.items)
         unfitted = len(box.unfitted_items)
@@ -524,7 +494,7 @@ class BinPackingGUI:
 
         lines = [
             f"Container: {box.partno}",
-            f"Size (L x W x H): {disp_box_d} x {disp_box_w} x {disp_box_h}",
+            f"Size: {disp_box_w} x {disp_box_h} x {disp_box_d}",
             f"Max Weight: {disp_box_weight}",
             "",
             f"Fitted Items: {fitted}",
@@ -540,7 +510,7 @@ class BinPackingGUI:
             disp_h = self.fmt_display(self.metric_to_display_dim(item.height))
             disp_d = self.fmt_display(self.metric_to_display_dim(item.depth))
             lines.append(
-                f"{item.partno} | pos={item.position} | size(LxWxH)={disp_d}x{disp_w}x{disp_h} | rot={item.rotation_type}"
+                f"{item.partno} | pos={item.position} | size={disp_w}x{disp_h}x{disp_d} | rot={item.rotation_type}"
             )
 
         lines.append("")
@@ -550,7 +520,7 @@ class BinPackingGUI:
             disp_w = self.fmt_display(self.metric_to_display_dim(item.width))
             disp_h = self.fmt_display(self.metric_to_display_dim(item.height))
             disp_d = self.fmt_display(self.metric_to_display_dim(item.depth))
-            lines.append(f"{item.partno} | size(LxWxH)={disp_d}x{disp_w}x{disp_h}")
+            lines.append(f"{item.partno} | size={disp_w}x{disp_h}x{disp_d}")
 
         self.results.delete("1.0", tk.END)
         self.results.insert(tk.END, "\n".join(lines))
@@ -568,35 +538,6 @@ class BinPackingGUI:
             fontsize=9,
         )
         fig.show()
-
-    # =========================
-    # Fill to Max Helpers
-    # =========================
-
-    def on_fill_to_max_toggle(self):
-        if self.item_fill_to_max.get():
-            self.item_qty.set("")
-            self.item_qty_entry.state(["disabled"])
-        else:
-            self.item_qty_entry.state(["!disabled"])
-            self.item_qty.set("1")
-
-    def _get_container_config(self):
-        return {
-            "name": self.bin_name.get().strip() or "MainBin",
-            "WHD": [
-                self.display_to_metric_dim(self.bin_w.get()),
-                self.display_to_metric_dim(self.bin_h.get()),
-                self.display_to_metric_dim(self.bin_d.get()),
-            ],
-            "max_weight": self.display_to_metric_weight(self.bin_weight.get()),
-            "corner": self.display_to_metric_dim(self.bin_corner.get() or 0),
-        }
-
-
-# --
-# Jason your a G homie
-# --
 
     def export_json(self):
         try:
@@ -664,12 +605,8 @@ class BinPackingGUI:
             self.bin_w.set(self.fmt_display(self.metric_to_display_dim(whd[0])))
             self.bin_h.set(self.fmt_display(self.metric_to_display_dim(whd[1])))
             self.bin_d.set(self.fmt_display(self.metric_to_display_dim(whd[2])))
-            self.bin_weight.set(
-                self.fmt_display(self.metric_to_display_weight(bin_data.get("max_weight", 1000)))
-            )
-            self.bin_corner.set(
-                self.fmt_display(self.metric_to_display_dim(bin_data.get("corner", 0)))
-            )
+            self.bin_weight.set(self.fmt_display(self.metric_to_display_weight(bin_data.get("max_weight", 1000))))
+            self.bin_corner.set(self.fmt_display(self.metric_to_display_dim(bin_data.get("corner", 0))))
 
             self.clear_all_items()
 
@@ -687,7 +624,6 @@ class BinPackingGUI:
                     "qty": int(item.get("qty", 1)),
                     "color": str(item.get("color", "#4F81BD")),
                     "updown": bool(item.get("updown", True)),
-                    "fill_to_max": bool(item.get("fill_to_max", False)),
                 }
 
                 self.items.append(normalized_item)
@@ -709,7 +645,7 @@ class BinPackingGUI:
                     self.display_to_metric_dim(self.item_d.get()),
                 ],
                 "weight": self.display_to_metric_weight(self.item_weight.get()),
-                "qty": 1 if self.item_fill_to_max.get() else int(self.item_qty.get()),
+                "qty": int(self.item_qty.get()),
                 "color": self.item_color.get().strip() or "#4F81BD",
                 "updown": self.item_updown.get(),
                 "fill_to_max": self.item_fill_to_max.get(),
@@ -756,12 +692,13 @@ class BinPackingGUI:
             self.item_w.set(self.fmt_display(self.metric_to_display_dim(whd[0])))
             self.item_h.set(self.fmt_display(self.metric_to_display_dim(whd[1])))
             self.item_d.set(self.fmt_display(self.metric_to_display_dim(whd[2])))
+            self.item_qty.set(str(item_data.get("qty", 1)))
             self.item_weight.set(
                 self.fmt_display(self.metric_to_display_weight(item_data.get("weight", 1)))
             )
             self.item_color.set(str(item_data.get("color", "#4F81BD")))
             self.item_updown.set(bool(item_data.get("updown", True)))
-            self.item_fill_to_max.set(bool(item_data.get("fill_to_max", False)))
+
 
             if self.item_fill_to_max.get():
                 self.item_qty.set("")
@@ -775,8 +712,3 @@ class BinPackingGUI:
 
         except Exception as exc:
             messagebox.showerror("Load Item Error", f"Failed to load item:\n{exc}")
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = BinPackingGUI(root)
-    root.mainloop()
