@@ -55,6 +55,10 @@ Built in Python using:
 
 ![3D Diagram](images/gui-diagram.png)
 
+### Full Pack
+
+![3D Diagram](images/gui-diagram-full.png)
+
 ---
 
 # Example Workflow
