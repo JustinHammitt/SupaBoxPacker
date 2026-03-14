@@ -27,6 +27,14 @@ Built in Python using:
 ✔ Export layouts to JSON  
 ✔ Windows EXE build via GitHub Actions  
 
+# Roadmap (Subject to change)
+
+v1.1  Fill to Max
+v1.2  Item Padding
+v1.3  Container Padding
+v1.4  Multi-item Fill to Max
+v1.5  Void Detection
+
 ---
 
 # Screenshots
