@@ -29,11 +29,12 @@ Built in Python using:
 
 # Roadmap (Subject to change)
 
-v1.1  Fill to Max
-v1.2  Item Padding
-v1.3  Container Padding
-v1.4  Multi-item Fill to Max
-v1.5  Void Detection
+- Todo: Seperate funcs not gui relatd from gui.py 
+- v1.1  Fill to Max
+- v1.2  Item Padding
+- v1.3  Container Padding
+- v1.4  Multi-item Fill to Max
+- v1.5  Void Detection
 
 ---
 
