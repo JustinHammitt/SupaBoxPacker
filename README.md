@@ -13,6 +13,11 @@ Built in Python using:
 ---
 
 # [Releases](https://github.com/JustinHammitt/3D-bin-packing-PYGUI/releases)
+[v1.1.0 Full Pack!](https://github.com/JustinHammitt/SupaBoxPacker/releases/tag/v1.1.0)
+
+# Past Releases
+[v1.0.14 Base release](https://github.com/JustinHammitt/SupaBoxPacker/releases/tag/v1.0.14)
+
 
 ---
 
