@@ -28,6 +28,8 @@ Built in Python using:
 ✔ Windows EXE build via GitHub Actions  
 ✔ v1.1  Fill to Max
 
+---
+
 # Roadmap (Subject to change)
 
 - Todo: Seperate funcs not gui relatd from gui.py 
