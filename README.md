@@ -86,27 +86,6 @@ You can also save layouts and item templates for reuse.
 }
 ```
 
----
-
-# Project Structure
-
-```
-SupaBoxPacker/
-│
-├─ gui.py
-├─ requirements.txt
-│
-├─ .github/
-│  └─ workflows/
-│     └─ build-windows.yml
-│
-└─ images/
-   ├─ gui-main.png
-   └─ gui-diagram.png
-```
-
----
-
 # Build From Source
 
 ```
