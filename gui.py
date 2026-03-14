@@ -4,6 +4,8 @@ from tkinter import ttk, messagebox, scrolledtext, filedialog
 
 from py3dbp import Packer, Bin, Item, Painter
 
+from fill_to_capacity import fill_single_item_to_capacity
+
 
 class BinPackingGUI:
     def __init__(self, root):
@@ -82,6 +84,7 @@ class BinPackingGUI:
         self.item_h = tk.StringVar()
         self.item_d = tk.StringVar()
         self.item_weight = tk.StringVar(value="1")
+        self.item_fill_to_max = tk.BooleanVar(value=False)
         self.item_qty = tk.StringVar(value="1")
         self.item_color = tk.StringVar(value="#4F81BD")
         self.item_updown = tk.BooleanVar(value=True)
@@ -104,6 +107,18 @@ class BinPackingGUI:
         self.item_weight_label.grid(row=1, column=0, padx=5, pady=5, sticky="e")
         ttk.Entry(item_frame, textvariable=self.item_weight, width=14).grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
+        ttk.Label(item_frame, text="Qty").grid(row=1, column=2, padx=5, pady=5, sticky="e")
+        self.item_qty_entry = ttk.Entry(item_frame, textvariable=self.item_qty, width=14)
+        self.item_qty_entry.grid(row=1, column=3, padx=5, pady=5, sticky="w")
+
+        ttk.Checkbutton(
+            item_frame,
+            text="Fill to Max",
+            variable=self.item_fill_to_max,
+            command=self.on_fill_to_max_toggle,
+        ).grid(row=1, column=4, padx=5, pady=5, sticky="w")
+
+        self._add_labeled_entry(item_frame, "Color", self.item_color, 1, 5)
         self._add_labeled_entry(item_frame, "Qty", self.item_qty, 1, 2)
         self._add_labeled_entry(item_frame, "Color", self.item_color, 1, 4)
         
@@ -284,7 +299,7 @@ class BinPackingGUI:
                     item["name"],
                     f"{display_w} x {display_h} x {display_d}",
                     display_weight,
-                    item["qty"],
+                    "AUTO" if item.get("fill_to_max", False) else item["qty"],
                     item["color"],
                     item["updown"],
                 ),
@@ -343,9 +358,10 @@ class BinPackingGUI:
                     self.display_to_metric_dim(self.item_d.get()),
                 ),
                 "weight": self.display_to_metric_weight(self.item_weight.get()),
-                "qty": int(self.item_qty.get()),
+                "qty": 1 if self.item_fill_to_max.get() else int(self.item_qty.get()),
                 "color": self.item_color.get().strip() or "#4F81BD",
                 "updown": self.item_updown.get(),
+                "fill_to_max": self.item_fill_to_max.get(),
             }
 
             if not item["name"]:
@@ -368,6 +384,8 @@ class BinPackingGUI:
         self.item_qty.set("1")
         self.item_color.set("#4F81BD")
         self.item_updown.set(True)
+        self.item_fill_to_max.set(False)
+        self.item_qty_entry.config(state="normal")
 
     def remove_selected(self):
         selected = self.tree.selection()
@@ -409,6 +427,31 @@ class BinPackingGUI:
             if not self.items:
                 raise ValueError("Add at least one item before packing.")
 
+            auto_items = [item for item in self.items if item.get("fill_to_max", False)]
+            if len(auto_items) > 1:
+                raise ValueError("Only one 'Fill to Max' item is supported right now.")
+
+            if len(self.items) > 1 and auto_items:
+                raise ValueError(
+                    "'Fill to Max' currently works only when it is the only item in the list."
+                )
+
+            if auto_items:
+                container = self._get_container_config()
+                auto_item = auto_items[0]
+                result = fill_single_item_to_capacity(
+                    container,
+                    dict(auto_item),
+                    max_search_qty=10000,
+                    bigger_first=True,
+                    distribute_items=False,
+                    fix_point=True,
+                    check_stable=False,
+                    support_surface_ratio=0.75,
+                    number_of_decimals=0,
+                )
+                auto_item["qty"] = int(result.fitted_count)
+
             packer = Packer()
             box = Bin(
                 partno=self.bin_name.get().strip() or "MainBin",
@@ -449,11 +492,12 @@ class BinPackingGUI:
             )
 
             self.last_box = packer.bins[0]
+            self.refresh_item_tree()
             self.render_results(self.last_box)
 
         except Exception as exc:
             messagebox.showerror("Packing Error", str(exc))
-
+    
     def render_results(self, box):
         fitted = len(box.items)
         unfitted = len(box.unfitted_items)
@@ -512,6 +556,36 @@ class BinPackingGUI:
             fontsize=9,
         )
         fig.show()
+
+    # =========================
+    # Fill to Max Helpers
+    # =========================
+
+    def on_fill_to_max_toggle(self):
+        if self.item_fill_to_max.get():
+            self.item_qty.set("1")
+            self.item_qty_entry.config(state="disabled")
+        else:
+            self.item_qty_entry.config(state="normal")
+            if self.item_qty.get().strip().lower() == "auto":
+                self.item_qty.set("1")
+
+    def _get_container_config(self):
+        return {
+            "name": self.bin_name.get().strip() or "MainBin",
+            "WHD": [
+                self.display_to_metric_dim(self.bin_w.get()),
+                self.display_to_metric_dim(self.bin_h.get()),
+                self.display_to_metric_dim(self.bin_d.get()),
+            ],
+            "max_weight": self.display_to_metric_weight(self.bin_weight.get()),
+            "corner": self.display_to_metric_dim(self.bin_corner.get() or 0),
+        }
+
+
+# --
+# Jason your a G homie
+# --
 
     def export_json(self):
         try:
