@@ -1,0 +1,25 @@
+From 0752bdbcc120de903c9ad1b0e06d70372e8d2db7 Mon Sep 17 00:00:00 2001
+From: Elrich Miranda <elrichmiranda14@gmail.com>
+Date: Wed, 20 Nov 2024 19:59:18 +0100
+Subject: [PATCH] efficiency on sorting
+
+---
+ py3dbp/main.py | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/py3dbp/main.py b/py3dbp/main.py
+index f07a05f..d8093de 100644
+--- a/py3dbp/main.py
++++ b/py3dbp/main.py
+@@ -600,9 +600,8 @@ def pack(self, bigger_first=False,distribute_items=True,fix_point=True,check_sta
+         # Bin: sorted by volume
+         self.bins.sort(key=lambda bin: bin.getVolume(), reverse=bigger_first)
+         # Item: sorted by volume -> load bearing -> level -> binding
+-        self.items.sort(key=lambda item: item.getVolume(), reverse=bigger_first)
+-        self.items.sort(key=lambda item: item.loadbear, reverse=True)
+-        self.items.sort(key=lambda item: item.level, reverse=False)
++        self.items.sort(key=lambda item: (-item.getVolume(), -item.loadbear, item.level))
++        
+         # sorted by binding
+         if binding != []:
+             self.sortBinding(bin)

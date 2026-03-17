@@ -22,7 +22,7 @@ class FillToCapacityError(Exception):
 
 def _build_bin(container: dict) -> Bin:
     return Bin(
-        partno=container["name"],
+        bin_id=container["name"],
         WHD=tuple(container["WHD"]),
         max_weight=float(container["max_weight"]),
         corner=float(container.get("corner", 0)),
@@ -31,17 +31,16 @@ def _build_bin(container: dict) -> Bin:
 
 def _build_item_copy(template: dict, copy_index: int) -> Item:
     return Item(
-        partno=f'{template["name"]}-{copy_index + 1}',
-        name=template["name"],
+        item_id=f'{template["name"]}-{copy_index + 1}',
+        item_name=template["name"],
         typeof=template.get("typeof", "cube"),
         WHD=tuple(template["WHD"]),
         weight=float(template.get("weight", 0)),
-        level=int(template.get("level", 1)),
+        priority_level=int(template.get("priority_level", 1)),
         loadbear=float(template.get("loadbear", 999999)),
         updown=bool(template.get("updown", True)),
         color=template.get("color", "#FF6666"),
     )
-
 
 def _run_pack(
     container: dict,

@@ -419,7 +419,7 @@ class BinPackingGUI:
 
         painter = Painter(self.last_box)
         fig = painter.plotBoxAndItems(
-            title=self.last_box.partno,
+            title=self.last_box.bin_id,
             alpha=0.35,
             write_num=True,
             fontsize=9,

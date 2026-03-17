@@ -1,0 +1,35 @@
+From d097214b79503c9bbf04a1b8259193faf67b9bb1 Mon Sep 17 00:00:00 2001
+From: Francesco Doti <106442603+FrancescoDoti@users.noreply.github.com>
+Date: Tue, 19 Nov 2024 16:28:00 +0100
+Subject: [PATCH] Name in Packer is now optional
+
+I made the name optional
+---
+ py3dbp/main.py | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/py3dbp/main.py b/py3dbp/main.py
+index 7f9933c..2a1d010 100644
+--- a/py3dbp/main.py
++++ b/py3dbp/main.py
+@@ -360,7 +360,7 @@ def clearBin(self):
+ 
+ class Packer:
+ 
+-    def __init__(self, name):
++    def __init__(self, name=None):
+         ''' '''
+         self.bins = []
+         self.items = []
+@@ -368,9 +368,9 @@ def __init__(self, name):
+         self.total_items = 0
+         self.binding = []
+         # self.apex = []
+-        self.name = name
++        self.name = name if name else "DefaultPacker"
+         if external_logger:
+-            external_logger.info(f'Aggiunto packer: {name}')
++            external_logger.info(f'Aggiunto packer: {self.name}')
+ 
+ 
+     def addBin(self, bin):

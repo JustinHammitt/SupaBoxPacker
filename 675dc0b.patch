@@ -1,0 +1,342 @@
+From 675dc0bb7748f5bf991e51f196083dec0eaf21fd Mon Sep 17 00:00:00 2001
+From: Riccardo Ravello <b00792959@essec.edu>
+Date: Thu, 28 Nov 2024 01:16:58 +0100
+Subject: [PATCH] Refactor binding packing logic to improve efficiency and
+ enhance error handling
+
+---
+ py3dbp/main.py | 282 ++++++++++++++++++++++++++++++++++++-------------
+ 1 file changed, 206 insertions(+), 76 deletions(-)
+
+diff --git a/py3dbp/main.py b/py3dbp/main.py
+index 73e9230..98a469b 100644
+--- a/py3dbp/main.py
++++ b/py3dbp/main.py
+@@ -516,7 +516,7 @@ def pack2Bin(self, bin, item, fix_point, check_stable, support_surface_ratio):
+             external_logger.info(f"Attempting to pack item {item.item_id} into bin {bin.bin_id}")
+ 
+         if item.assigned_bin and item.assigned_bin.bin_id != bin.bin_id:
+-            return  # Skip packing if item is assigned to a different bin
++            return False  # Skip packing if item is assigned to a different bin
+ 
+         # First put item at (0, 0, 0), if corner exists, first add corner in box
+         if bin.corner != 0 and not bin.items:
+@@ -531,7 +531,9 @@ def pack2Bin(self, bin, item, fix_point, check_stable, support_surface_ratio):
+                 bin.unfitted_items.append(item)
+                 if external_logger:
+                     external_logger.info(f'Item: {item.item_id} does not fit in bin: {bin.bin_id}')
+-            return
++                return False
++            else:
++                return True
+ 
+         for axis in range(0, 3):
+             items_in_bin = bin.items
+@@ -554,37 +556,100 @@ def pack2Bin(self, bin, item, fix_point, check_stable, support_surface_ratio):
+             bin.unfitted_items.append(item)
+             if external_logger:
+                 external_logger.info(f"Item {item.item_id} does not fit in bin {bin.bin_id}")
+-
+-    def sortBinding(self): # Sorting everything in this packer
+-        ''' sorted by binding '''
+-        b, front, back = [], [], []
+-        for i in range(len(self.binding)):
+-            b.append([])
+-            for item in self.items:
+-                if item.item_id in self.binding[i]:
+-                    b[i].append(item)
+-                elif item.item_id not in self.binding:
+-                    if len(b[0]) == 0 and item not in front:
+-                        front.append(item)
+-                    elif item not in back and item not in front:
+-                        back.append(item)
+-
+-        min_c = min([len(i) for i in b])
+-
+-        sort_bind = []
+-        for i in range(min_c):
+-            for j in range(len(b)):
+-                sort_bind.append(b[j][i])
+-
+-        for i in b:
+-            for j in i:
+-                if j not in sort_bind:
+-                    self.unfit_items.append(j)
++        return fitted
++
++    def sortBinding(self):
++        ''' Process binding groups according to the new specifications '''
++        # Step 1: Merge groups with common items
++        merged_bindings = self.mergeBindingGroups()
++
++        # Step 2: For each merged group, check assigned bins and set minimum priority
++        for group in merged_bindings:
++            assigned_bins = set()
++            priorities = []
++            for item_id in group:
++                item = next((i for i in self.items if i.item_id == item_id), None)
++                if item:
++                    if item.assigned_bin:
++                        assigned_bins.add(item.assigned_bin)
++                    priorities.append(item.priority_level)
++                else:
+                     if external_logger:
+-                        external_logger.info(f"Item {j.item_id} does not fit in sorting binding")
++                        external_logger.warning(f"Item {item_id} specified in binding but not found in items.")
++            # Check for conflicting assigned bins
++            if len(assigned_bins) > 1:
++                raise ValueError(f"Items in binding group {group} have conflicting assigned bins.")
++            # Assign the bin to all items in the group if any
++            assigned_bin = assigned_bins.pop() if assigned_bins else None
++            for item_id in group:
++                item = next((i for i in self.items if i.item_id == item_id), None)
++                if item:
++                    item.assigned_bin = assigned_bin
++            # Set minimum priority to all items in the group
++            min_priority = min(priorities) if priorities else None
++            for item_id in group:
++                item = next((i for i in self.items if i.item_id == item_id), None)
++                if item and min_priority is not None:
++                    item.priority_level = min_priority
++
++        # Step 3: Reorder items so that binding groups are together
++        bound_items = []
++        unbound_items = self.items.copy()
++        for group in merged_bindings:
++            group_items = []
++            for item_id in group:
++                item = next((i for i in self.items if i.item_id == item_id), None)
++                if item:
++                    group_items.append(item)
++                    if item in unbound_items:
++                        unbound_items.remove(item)
++            bound_items.append(group_items)
++
++        # Flatten the list of bound items while maintaining groupings
++        self.items = []
++        for group_items in bound_items:
++            self.items.extend(group_items)
++        self.items.extend(unbound_items)
++
++    def mergeBindingGroups(self):
++        ''' Merge binding groups that have common items '''
++        parent = dict()
++
++        def find(item):
++            while parent[item] != item:
++                parent[item] = parent[parent[item]]  # Path compression
++                item = parent[item]
++            return item
++
++        def union(item1, item2):
++            root1 = find(item1)
++            root2 = find(item2)
++            if root1 != root2:
++                parent[root2] = root1
++
++        # Initialize parent pointers
++        all_items_in_bindings = set()
++        for group in self.binding:
++            for item_id in group:
++                parent[item_id] = item_id
++                all_items_in_bindings.add(item_id)
++
++        # Union items in the same group
++        for group in self.binding:
++            for i in range(len(group) - 1):
++                union(group[i], group[i + 1])
++
++        # Collect merged groups
++        groups = dict()
++        for item_id in all_items_in_bindings:
++            root = find(item_id)
++            if root in groups:
++                groups[root].add(item_id)
++            else:
++                groups[root] = {item_id}
+ 
+-        self.items = front + sort_bind + back
+-        return
++        merged_bindings = [list(group) for group in groups.values()]
++        return merged_bindings
+ 
+     def putOrder(self):
+         ''' Arrange the order of items '''
+@@ -646,67 +711,132 @@ def gravityCenter(self, bin):
+         return result
+ 
+     def pack(self, bigger_first=False, distribute_items=True, fix_point=True, check_stable=True, support_surface_ratio=0.75, binding=[], number_of_decimals=DEFAULT_NUMBER_OF_DECIMALS):
+-        '''pack master func '''
+-        # set decimals
++        '''Pack items into bins with binding considerations.'''
++        # Set the number of decimals for measurements
+         for bin in self.bins:
+             bin.formatNumbers(number_of_decimals)
+ 
+         for item in self.items:
+             item.formatNumbers(number_of_decimals)
+-        # Add binding attribute
++
++        # Add the binding attribute
+         self.binding = binding
+-        # Bin: sorted by volume
++
++        # Process binding groups
++        if binding != []:
++            self.sortBinding()
++
++        # Sort bins by volume
+         self.bins.sort(key=lambda bin: bin.getVolume(), reverse=bigger_first)
+-        # Item: sorted by volume -> load bearing -> priority_level -> binding
++
++        # Sort items by priority_level, loadbear, and volume
+         self.items.sort(key=lambda item: (
+-            item.priority_level,                                             # priority_level ascending
+-            -item.loadbear,                                         # Loadbear descending
+-            -item.getVolume() if bigger_first else item.getVolume() # Volume (reversed if bigger_first=True)
++            item.priority_level,  # Ascending priority_level
++            -item.loadbear,  # Descending loadbear
++            -item.getVolume() if bigger_first else item.getVolume()  # Volume
+         ))
+ 
+-        # sorted by binding
+-        if binding != []:
+-            self.sortBinding(bin)
++        # Prepare a set to track already packed items
++        packed_items = set()
++        unfit_binding_groups = []
++
++        # Initialize the list of unfit items
++        self.unfit_items = []
+ 
+-        for idx, bin in enumerate(self.bins):
+-            # Pack item to bin
+-            for item in self.items:
++        # Create a dictionary of items for easy lookup
++        items_dict = {item.item_id: item for item in self.items}
++
++        # Process binding groups
++        if self.binding != []:
++            for group in self.binding:
++                group_items = [items_dict[item_id] for item_id in group if item_id in items_dict]
++                group_packed = False
++
++                # Try to pack the group into each bin
++                for bin in self.bins:
++                    # Check if items have assigned bins and if they match the current bin
++                    assigned_bins = set(item.assigned_bin.bin_id for item in group_items if item.assigned_bin)
++                    if assigned_bins and bin.bin_id not in assigned_bins:
++                        continue  # Skip bin if it doesn't match assigned bin
++
++                    # Set the assigned bin for all items in the group
++                    for item in group_items:
++                        item.assigned_bin = bin
++
++                    # Save the current state of the bin for rollback
++                    bin_items_backup = bin.items.copy()
++                    bin_fit_items_backup = bin.fit_items.copy()
++                    bin_unfitted_items_backup = bin.unfitted_items.copy()
++
++                    # Try to pack the group
++                    group_fitted = True
++                    for item in group_items:
++                        if not self.pack2Bin(bin, item, fix_point, check_stable, support_surface_ratio):
++                            group_fitted = False
++                            break
++
++                    if group_fitted:
++                        packed_items.update(item.item_id for item in group_items)
++                        group_packed = True
++                        break  # Group packed successfully, move to next group
++                    else:
++                        # Restore bin state and try next bin
++                        bin.items = bin_items_backup
++                        bin.fit_items = bin_fit_items_backup
++                        bin.unfitted_items = bin_unfitted_items_backup
++
++                if not group_packed:
++                    # Group couldn't be packed into any bin
++                    unfit_binding_groups.extend(group_items)
++                    if external_logger:
++                        external_logger.info(f"Group {group} could not be packed into any bin")
++
++        # After processing binding groups, pack unbound items
++        for bin in self.bins:
++            # Set bin properties
++            bin.fix_point = fix_point
++            bin.check_stable = check_stable
++            bin.support_surface_ratio = Decimal(str(support_surface_ratio))
++
++            # Get items not yet packed and not in unfit binding groups
++            items_to_pack = [item for item in self.items if item.item_id not in packed_items and item not in unfit_binding_groups]
++
++            # Sort remaining items
++            items_to_pack.sort(key=lambda item: (
++                item.priority_level,  # Ascending priority_level
++                -item.loadbear,  # Descending loadbear
++                -item.getVolume() if bigger_first else item.getVolume()  # Volume
++            ))
++
++            # Try to pack unbound items
++            for item in items_to_pack:
+                 if item.assigned_bin and item.assigned_bin.bin_id != bin.bin_id:
+                     if external_logger:
+                         external_logger.info(f'Item {item.item_id} (assigned to bin {item.assigned_bin.bin_id}) does not match bin {bin.bin_id}')
+-                    continue  # Skip items that are assigned to a different bin
+-                self.pack2Bin(bin, item, fix_point, check_stable, support_surface_ratio)
+-
+-            if binding != []:
+-                # resorted
+-                self.items.sort(key=lambda item: item.getVolume(), reverse=bigger_first)
+-                self.items.sort(key=lambda item: item.loadbear, reverse=True)
+-                self.items.sort(key=lambda item: item.priority_level, reverse=False)
+-                # clear bin
+-                bin.items = []
+-                bin.unfitted_items = self.unfit_items
+-                bin.fit_items = np.array([[Decimal('0'), bin.width, Decimal('0'), bin.height, Decimal('0'), Decimal('0')]], dtype=object)
+-                # repacking
+-                for item in self.items:
+-                    self.pack2Bin(bin, item, fix_point, check_stable, support_surface_ratio)
+-
+-            # Deviation Of Cargo Gravity Center
+-            self.bins[idx].gravity = self.gravityCenter(bin)
+-
+-            if distribute_items:
+-                for bitem in bin.items:
+-                    no = bitem.item_id
+-                    for item in self.items:
+-                        if item.item_id == no:
+-                            self.items.remove(item)
+-                            break
++                    continue  # Skip items assigned to another bin
++                if self.pack2Bin(bin, item, fix_point, check_stable, support_surface_ratio):
++                    packed_items.add(item.item_id)
++                else:
++                    bin.unfitted_items.append(item)
++                    if external_logger:
++                        external_logger.info(f"Item {item.item_id} does not fit in bin {bin.bin_id}")
+ 
+-        # Arrange order of items
+-        self.putOrder()
++            # Calculate the cargo gravity center
++            bin.gravity = self.gravityCenter(bin)
++
++        # Add unfit binding groups to unfit items
++        self.unfit_items.extend(unfit_binding_groups)
+ 
+-        if self.items != []:
+-            self.unfit_items = copy.deepcopy(self.items)
+-            self.items = []
++        # Add any remaining unfit items
++        remaining_unpacked_items = [item for item in self.items if item.item_id not in packed_items and item not in unfit_binding_groups]
++        self.unfit_items.extend(remaining_unpacked_items)
++
++        # Remove packed items from self.items if distribute_items is True
++        if distribute_items:
++            self.items = [item for item in self.items if item.item_id not in packed_items]
++
++        # Arrange the order of items
++        self.putOrder()
+ 
+ class Painter:
+ 

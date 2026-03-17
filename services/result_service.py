@@ -26,7 +26,7 @@ class ResultService:
         disp_box_weight = number_formatter(weight_formatter(box.max_weight))
 
         lines = [
-            f"Container: {box.partno}",
+            f"Container: {box.bin_id}",
             f"Size: {disp_box_w} x {disp_box_h} x {disp_box_d}",
             f"Max Weight: {disp_box_weight}",
             "",
@@ -43,7 +43,7 @@ class ResultService:
             disp_h = number_formatter(dim_formatter(item.height))
             disp_d = number_formatter(dim_formatter(item.depth))
             lines.append(
-                f"{item.partno} | pos={item.position} | size={disp_w}x{disp_h}x{disp_d} | rot={item.rotation_type}"
+                f"{item.item_id} | pos={item.position} | size={disp_w}x{disp_h}x{disp_d} | rot={item.rotation_type}"
             )
 
         lines.append("")
@@ -53,7 +53,7 @@ class ResultService:
             disp_w = number_formatter(dim_formatter(item.width))
             disp_h = number_formatter(dim_formatter(item.height))
             disp_d = number_formatter(dim_formatter(item.depth))
-            lines.append(f"{item.partno} | size={disp_w}x{disp_h}x{disp_d}")
+            lines.append(f"{item.item_id} | size={disp_w}x{disp_h}x{disp_d}")
 
         return lines
 

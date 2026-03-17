@@ -54,7 +54,7 @@ class PackingService:
     @staticmethod
     def build_bin(container):
         return Bin(
-            partno=container["name"],
+            bin_id=container["name"],
             WHD=tuple(container["WHD"]),
             max_weight=container["max_weight"],
             corner=container["corner"],
@@ -67,12 +67,12 @@ class PackingService:
             for i in range(item["qty"]):
                 packer.addItem(
                     Item(
-                        partno=f"{item['name']}-{i + 1}",
-                        name=item["name"],
+                        item_id=f"{item['name']}-{i + 1}",
+                        item_name=item["name"],
                         typeof="cube",
                         WHD=item["WHD"],
                         weight=item["weight"],
-                        level=1,
+                        priority_level=1,
                         loadbear=100,
                         updown=item["updown"],
                         color=item["color"],

@@ -1,0 +1,62 @@
+From ea5d2d07188afc4f15ff835d7c8d0c2de9494fe3 Mon Sep 17 00:00:00 2001
+From: Riccardo Ravello <b00792959@essec.edu>
+Date: Thu, 28 Nov 2024 02:19:04 +0100
+Subject: [PATCH] Add methods to pack all packers and plot bins separately
+
+---
+ py3dbp/main.py | 35 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+
+diff --git a/py3dbp/main.py b/py3dbp/main.py
+index 98a469b..3742b7f 100644
+--- a/py3dbp/main.py
++++ b/py3dbp/main.py
+@@ -838,6 +838,22 @@ def pack(self, bigger_first=False, distribute_items=True, fix_point=True, check_
+         # Arrange the order of items
+         self.putOrder()
+ 
++    @staticmethod
++    def packAllPackers(packers, bigger_first=False, distribute_items=True, fix_point=True, check_stable=True,
++                       support_surface_ratio=0.75, binding=[], number_of_decimals=DEFAULT_NUMBER_OF_DECIMALS):
++        '''Pack all items in all packers provided.'''
++        for packer in packers:
++            packer.pack(bigger_first=bigger_first,
++                        distribute_items=distribute_items,
++                        fix_point=fix_point,
++                        check_stable=check_stable,
++                        support_surface_ratio=support_surface_ratio,
++                        binding=binding,
++                        number_of_decimals=number_of_decimals)
++        if external_logger:
++            external_logger.info(f"All packers have been packed.")
++
++
+ class Painter:
+ 
+     def __init__(self, bin):
+@@ -902,6 +918,25 @@ def plotBoxAndItems(self, title="", alpha=0.2, write_name=True, fontsize=10, alp
+ 
+         return fig  # Return the generated figure
+ 
++    @staticmethod
++    def plotAllBinsSeparately(bins, title_prefix="", alpha=0.2, write_name=True, fontsize=10,
++                              alpha_proportional=False, top_face_proportional=False, show_edges=True):
++        """Plot all bins separately."""
++        for idx, bin in enumerate(bins):
++            title = f"{title_prefix} Bin {idx + 1}: {bin.bin_id}"
++            painter = Painter(bin)
++            painter.plotBoxAndItems(
++                title=title,
++                alpha=alpha,
++                write_name=write_name,
++                fontsize=fontsize,
++                alpha_proportional=alpha_proportional,
++                top_face_proportional=top_face_proportional,
++                show_edges=show_edges
++            )
++        if external_logger:
++            external_logger.info(f"All bins have been plotted separately.")
++
+     def _plotBinWireframe(self, fig, x, y, z, dx, dy, dz, color='black'):
+         """ Auxiliary function to plot a wireframe cube for the bin. """
+         # Define the vertices of the cube
