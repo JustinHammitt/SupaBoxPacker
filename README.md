@@ -15,6 +15,7 @@ Built in Python using:
 # [Releases](https://github.com/JustinHammitt/3D-bin-packing-PYGUI/releases)
 
 [v1.2.0 Core Improvements](https://github.com/JustinHammitt/SupaBoxPacker/releases/tag/v1.2.0)
+Big thanks to [ravhello](https://github.com/ravhello) for his original contributions to py3dbp/main.py
 
 # Past Releases
 
