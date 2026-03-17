@@ -3,4 +3,4 @@ matplotlib>=3.7
 Flask>=2.3
 Flask-Cors>=4.0
 pyinstaller>=6.0
-plotly>=6.6.0
+#plotly>=6.6.0  Removed using matplotlib, plotly implementation archived 
