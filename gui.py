@@ -10,6 +10,7 @@ from services.result_service import ResultService
 from services.object_builder_service import ObjectBuilderService
 from services.render_service import RenderService
 from services.validation_service import ValidationService
+from services.export_service import ExportService
 
 class BinPackingGUI:
     def __init__(self, root):
@@ -196,6 +197,7 @@ class BinPackingGUI:
         ttk.Button(action_frame, text="Pack Box", command=self.run_packing).pack(side="left", padx=5)
         ttk.Button(action_frame, text="Show 3D Diagram", command=self.show_plot).pack(side="left", padx=5)
         ttk.Button(action_frame, text="Save Box Diagram", command=self.export_json).pack(side="left", padx=5)
+        ttk.Button(action_frame, text="Export CSV Report", command=self.export_csv).pack(side="left", padx=5)
 
         # =========================
         # Results Section
@@ -498,6 +500,41 @@ class BinPackingGUI:
             fontsize=9,
         )
         fig.show()
+
+        # Exporting the plot
+    def export_csv(self):
+        if not self.last_box:
+            messagebox.showinfo("No Results", "Pack a box first.")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            title="Export Packing Results",
+            defaultextension=".csv",
+            filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")],
+           initialfile="packing_results.csv",
+        )
+
+        if not file_path:
+            return
+
+        try:
+            row_count = ExportService.export_results_csv(
+                self.last_box,
+                file_path,
+                dim_formatter=self.metric_to_display_dim,
+                weight_formatter=self.metric_to_display_weight,
+                number_formatter=self.fmt_display,
+            )
+
+            self.results.delete("1.0", tk.END)
+            self.results.insert(
+                tk.END,
+                f"Exported packing results to CSV:\n{file_path}\n"
+                f"Rows written: {row_count}"
+            )
+
+        except Exception as exc:
+            messagebox.showerror("CSV Export Error", f"Failed to export CSV:\n{exc}")
 
     def export_json(self):
         try:
