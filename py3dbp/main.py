@@ -3,7 +3,7 @@ from .auxiliary_methods import intersect, set2Decimal
 from decimal import Decimal, getcontext
 import numpy as np
 import copy
-import plotly.graph_objects as go
+#import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D, art3d
 from matplotlib.patches import Rectangle, Circle
