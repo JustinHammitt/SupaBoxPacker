@@ -20,8 +20,8 @@ class BinPackingGUI:
 
         self.items = []
         self.last_box = None
-        self.unit_system = tk.StringVar(value="Metric (cm)")
-        self.previous_unit_system = "Metric (cm)"
+        self.unit_system = tk.StringVar(value="Imperial (in)")
+        self.previous_unit_system = "Imperial (in)"
 
         self._build_ui()
 
@@ -524,6 +524,7 @@ class BinPackingGUI:
                 dim_formatter=self.metric_to_display_dim,
                 weight_formatter=self.metric_to_display_weight,
                 number_formatter=self.fmt_display,
+                units=self.unit_system.get(),
             )
 
             self.results.delete("1.0", tk.END)

@@ -11,3 +11,7 @@ venv
 debug.log
 test*
 *.pyc
+.idea/modules.xml
+.idea/vcs.xml
+.idea/workspace.xml
+.idea/3D-bin-packing-PYGUI.iml

@@ -10,18 +10,20 @@ class ExportService:
         dim_formatter=lambda value: value,
         weight_formatter=lambda value: value,
         number_formatter=lambda value: value,
+        units="Metric (cm)",
     ):
         summary_row = ExportService.build_summary_row(
             box,
             dim_formatter=dim_formatter,
             weight_formatter=weight_formatter,
             number_formatter=number_formatter,
+            units=units,
         )
         ExportService.write_csv(file_path, summary_row)
         return 1
 
     @staticmethod
-    def build_summary_row(box, dim_formatter, weight_formatter, number_formatter):
+    def build_summary_row(box, dim_formatter, weight_formatter, number_formatter, units):
         packed_items = list(getattr(box, "items", []))
         unfitted_items = list(getattr(box, "unfitted_items", []))
 
@@ -51,6 +53,7 @@ class ExportService:
             "packed_weight": number_formatter(weight_formatter(packed_weight)),
             "weight_utilization_percent": number_formatter(round(weight_utilization, 2)),
             "gravity_distribution": str(getattr(box, "gravity", "")),
+            "units": units,
         }
 
     @staticmethod
@@ -59,19 +62,23 @@ class ExportService:
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
         fieldnames = [
+            # ===== RESULTS FIRST =====
+            "units",
+            "fitted_items",
+            "unfitted_items",
+            "packed_weight",
+            "weight_utilization_percent",
+            "used_volume",
+            "total_volume",
+            "space_utilization_percent",
+            "gravity_distribution",
+
+            # ===== CONTAINER INFO =====
             "container_id",
             "container_width",
             "container_height",
             "container_depth",
             "max_weight",
-            "fitted_items",
-            "unfitted_items",
-            "used_volume",
-            "total_volume",
-            "space_utilization_percent",
-            "packed_weight",
-            "weight_utilization_percent",
-            "gravity_distribution",
         ]
 
         with file_path.open("w", newline="", encoding="utf-8") as csvfile:
